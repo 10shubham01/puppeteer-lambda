@@ -9,7 +9,7 @@ env:
   AWS_REGION: 'ap-south-1'
   LAMBDA_FUNCTION_NAME: 'test-puppeteer-pdf-function'
   LAYER_NAME: 'puppeteer-chromium-layer'
-  LAYER_BUCKET: 'my-lambda-layers-bucket'
+  LAYER_BUCKET: 'my-lambda-layers-bucket-1'
   LAYER_KEY: chromium-layer.zip
 
 jobs:
