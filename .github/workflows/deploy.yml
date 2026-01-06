@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
 
 env:
-  AWS_REGION: ${{ secrets.AWS_REGION }}
-  LAMBDA_FUNCTION_NAME: ${{ secrets.LAMBDA_FUNCTION_NAME }}
-  LAYER_NAME: ${{ secrets.LAYER_NAME }}
+  AWS_REGION: 'ap-south-1'
+  LAMBDA_FUNCTION_NAME: 'test-puppeteer-pdf-function'
+  LAYER_NAME: 'puppeteer-chromium-layer'
 
 jobs:
   deploy:
