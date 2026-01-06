@@ -1,0 +1,73 @@
+name: Deploy Lambda and Layer
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  LAMBDA_FUNCTION_NAME: ${{ secrets.LAMBDA_FUNCTION_NAME }}
+  LAYER_NAME: ${{ secrets.LAYER_NAME }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build TypeScript
+        run: npm run build
+
+      - name: Prune dev dependencies
+        run: npm prune --production
+
+      - name: Package Lambda artifact
+        run: zip -r lambda.zip dist node_modules package.json package-lock.json
+
+      - name: Prepare Chromium layer
+        run: |
+          cd layer/nodejs
+          npm ci --omit=dev
+          cd ..
+          zip -r chromium-layer.zip nodejs
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Publish layer version
+        id: publish_layer
+        run: |
+          LAYER_VERSION_ARN=$(aws lambda publish-layer-version \
+            --layer-name "${LAYER_NAME}" \
+            --zip-file fileb://layer/chromium-layer.zip \
+            --compatible-runtimes nodejs18.x nodejs20.x \
+            --compatible-architectures x86_64 \
+            --query 'LayerVersionArn' --output text)
+          echo "layerArn=$LAYER_VERSION_ARN" >> "$GITHUB_OUTPUT"
+
+      - name: Attach layer to function
+        run: aws lambda update-function-configuration \
+          --function-name "${LAMBDA_FUNCTION_NAME}" \
+          --layers "${{ steps.publish_layer.outputs.layerArn }}"
+
+      - name: Update Lambda code
+        run: aws lambda update-function-code \
+          --function-name "${LAMBDA_FUNCTION_NAME}" \
+          --zip-file fileb://lambda.zip
