@@ -9,6 +9,8 @@ env:
   AWS_REGION: 'ap-south-1'
   LAMBDA_FUNCTION_NAME: 'test-puppeteer-pdf-function'
   LAYER_NAME: 'puppeteer-chromium-layer'
+  LAYER_BUCKET: 'my-lambda-layers-bucket'
+  LAYER_KEY: chromium-layer.zip
 
 jobs:
   deploy:
@@ -54,9 +56,10 @@ jobs:
       - name: Publish layer version
         id: publish_layer
         run: |
+          aws s3 cp layer/chromium-layer.zip "s3://${LAYER_BUCKET}/${LAYER_KEY}"
           LAYER_VERSION_ARN=$(aws lambda publish-layer-version \
             --layer-name "${LAYER_NAME}" \
-            --zip-file fileb://layer/chromium-layer.zip \
+            --content S3Bucket="${LAYER_BUCKET}",S3Key="${LAYER_KEY}" \
             --compatible-runtimes nodejs18.x nodejs20.x \
             --compatible-architectures x86_64 \
             --query 'LayerVersionArn' --output text)
