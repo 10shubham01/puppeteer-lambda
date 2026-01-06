@@ -66,11 +66,7 @@ jobs:
           echo "layerArn=$LAYER_VERSION_ARN" >> "$GITHUB_OUTPUT"
 
       - name: Attach layer to function
-        run: aws lambda update-function-configuration \
-          --function-name "${LAMBDA_FUNCTION_NAME}" \
-          --layers "${{ steps.publish_layer.outputs.layerArn }}"
+        run: aws lambda update-function-configuration --function-name "${LAMBDA_FUNCTION_NAME}" --layers "${{ steps.publish_layer.outputs.layerArn }}"
 
       - name: Update Lambda code
-        run: aws lambda update-function-code \
-          --function-name "${LAMBDA_FUNCTION_NAME}" \
-          --zip-file fileb://lambda.zip
+        run: aws lambda update-function-code --function-name "${LAMBDA_FUNCTION_NAME}" --zip-file fileb://lambda.zip
