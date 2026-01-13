@@ -8,7 +8,7 @@ on:
 
 env:
   AWS_REGION: ap-south-1
-  FUNCTION_NAME: test-puppeteer-pdf-function
+  FUNCTION_NAME: puppeteer-new
   S3_BUCKET: pdf-storage-1
   S3_KEY: new/lambda-function.zip
 
