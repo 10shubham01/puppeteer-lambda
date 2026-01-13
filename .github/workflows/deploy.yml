@@ -6,11 +6,11 @@ on:
       - main
   workflow_dispatch:
 
-# env:
-#   AWS_REGION: ap-south-1
-#   FUNCTION_NAME: test-puppeteer-pdf-function
-#   S3_BUCKET: pdf-storage-1
-#   S3_KEY: new/lambda-function.zip
+env:
+  AWS_REGION: ap-south-1
+  FUNCTION_NAME: test-puppeteer-pdf-function
+  S3_BUCKET: pdf-storage-1
+  S3_KEY: new/lambda-function.zip
 
 jobs:
   deploy:
