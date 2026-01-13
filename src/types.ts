@@ -1,5 +1,3 @@
-// Type definitions for the PDF generator
-
 export interface PdfOptions {
   waitUntil?: "load" | "domcontentloaded" | "networkidle0" | "networkidle2";
   timeout?: number;

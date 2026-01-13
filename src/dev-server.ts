@@ -14,7 +14,6 @@ const DEFAULT_PORT = 3000;
 const API_KEY = process.env.API_KEY || "dev-api-key";
 const s3 = new S3Client({ region: process.env.AWS_REGION || "ap-south-1" });
 
-// Check if a port is available
 async function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
     const server = net.createServer();
@@ -27,7 +26,6 @@ async function isPortAvailable(port: number): Promise<boolean> {
   });
 }
 
-// Find an available port starting from the default
 async function findAvailablePort(startPort: number): Promise<number> {
   let port = startPort;
   const maxPort = startPort + 100;
@@ -42,7 +40,6 @@ async function findAvailablePort(startPort: number): Promise<number> {
   throw new Error(`No available port found between ${startPort} and ${maxPort}`);
 }
 
-// Parse HTTP request body
 async function parseHttpBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     let body = "";
@@ -52,7 +49,6 @@ async function parseHttpBody(req: IncomingMessage): Promise<string> {
   });
 }
 
-// Send response
 function sendResponse(
   res: ServerResponse,
   lambdaResponse: LambdaResponse,
@@ -60,7 +56,6 @@ function sendResponse(
 ): void {
   const { statusCode, headers, body } = lambdaResponse;
 
-  // If SKIP_S3 and we have PDF buffer, return PDF directly
   if (process.env.SKIP_S3 === "true" && pdfBuffer && statusCode === 200) {
     res.writeHead(200, {
       "Content-Type": "application/pdf",
@@ -75,14 +70,12 @@ function sendResponse(
   res.end(body);
 }
 
-// Main handler (mimics Lambda)
 async function handleRequest(
   req: IncomingMessage,
   res: ServerResponse
 ): Promise<void> {
   const method = req.method || "GET";
 
-  // Convert HTTP request to Lambda event format
   const event = {
     httpMethod: method,
     headers: req.headers as Record<string, string>,
@@ -90,14 +83,12 @@ async function handleRequest(
     isBase64Encoded: false,
   };
 
-  // API Key authentication (using shared logic)
   const authResult = authenticate(event.headers, API_KEY);
   if (!authResult.valid) {
     sendResponse(res, authResult.response!);
     return;
   }
 
-  // Only allow POST
   if (method !== "POST") {
     sendResponse(
       res,
@@ -113,7 +104,6 @@ async function handleRequest(
   let browser = null;
 
   try {
-    // Parse request body (using shared logic)
     const parseResult = parseRequestBody(event.body, event.isBase64Encoded);
     if (!parseResult.success) {
       sendResponse(res, parseResult.response!);
@@ -124,13 +114,11 @@ async function handleRequest(
       `🚀 Generating PDF for: ${parseResult.data?.url || "https://example.com"}`
     );
 
-    // Launch browser (local puppeteer)
     browser = await puppeteer.launch({
       headless: true,
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
     });
 
-    // Generate PDF using shared logic
     const result = await generatePdf(
       browser,
       parseResult.data!,
@@ -140,7 +128,6 @@ async function handleRequest(
 
     console.log(`📄 PDF generated successfully`);
 
-    // Send response (with pdfBuffer for SKIP_S3 mode)
     sendResponse(res, result, result.pdfBuffer || null);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -163,10 +150,9 @@ async function handleRequest(
   }
 }
 
-// Start server
 async function startServer(): Promise<void> {
   const requestedPort = process.env.PORT ? parseInt(process.env.PORT, 10) : DEFAULT_PORT;
-  
+
   let port: number;
   try {
     port = await findAvailablePort(requestedPort);
@@ -200,7 +186,6 @@ curl -X POST http://localhost:${port} \\
 `);
   });
 
-  // Graceful shutdown
   process.on("SIGINT", () => {
     console.log("\n👋 Shutting down...");
     server.close(() => process.exit(0));

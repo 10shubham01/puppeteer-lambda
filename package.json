@@ -16,8 +16,8 @@
     "dev:watch": "tsc --watch",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
-    "deploy": "npm run build:clean && cd dist && zip -r ../lambda-function.zip index.js core.js types.js && cd .. && zip -ur lambda-function.zip node_modules -x 'node_modules/puppeteer/*' 'node_modules/.cache/*' && aws s3 cp lambda-function.zip s3://pdf-storage-1/new/",
-    "deploy:local": "npm run build:clean && cd dist && zip -r ../lambda-function.zip index.js core.js types.js && cd .. && zip -ur lambda-function.zip node_modules -x 'node_modules/puppeteer/*' 'node_modules/.cache/*'"
+    "deploy": "npm run build:clean && cd dist && zip -r ../lambda-function.zip index.js core.js types.js && cd .. && zip -u lambda-function.zip package.json && zip -ur lambda-function.zip node_modules -x 'node_modules/puppeteer/*' 'node_modules/.cache/*' && aws s3 cp lambda-function.zip s3://pdf-storage-1/new/",
+    "deploy:local": "npm run build:clean && cd dist && zip -r ../lambda-function.zip index.js core.js types.js && cd .. && zip -u lambda-function.zip package.json && zip -ur lambda-function.zip node_modules -x 'node_modules/puppeteer/*' 'node_modules/.cache/*'"
   },
   "engines": {
     "node": ">=20.0.0"

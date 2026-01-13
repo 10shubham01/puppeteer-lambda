@@ -42,6 +42,7 @@ jobs:
       - name: Create deployment package
         run: |
           cd dist && zip -r ../lambda-function.zip index.js core.js types.js && cd ..
+          zip -u lambda-function.zip package.json
           zip -ur lambda-function.zip node_modules -x 'node_modules/puppeteer/*' 'node_modules/.cache/*' 'node_modules/@types/*' 'node_modules/typescript/*'
 
       - name: Upload to S3

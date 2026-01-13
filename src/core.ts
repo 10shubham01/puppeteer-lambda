@@ -1,5 +1,3 @@
-// Core PDF generation logic shared between Lambda and dev server
-
 import type { Browser, Page, ConsoleMessage } from "puppeteer-core";
 import type { S3Client as S3ClientType } from "@aws-sdk/client-s3";
 import type {
@@ -12,7 +10,6 @@ import type {
   ErrorCollection,
 } from "./types.js";
 
-// Helper function to validate URLs
 export function isValidUrl(urlString: string): boolean {
   try {
     const url = new URL(urlString);
@@ -22,7 +19,6 @@ export function isValidUrl(urlString: string): boolean {
   }
 }
 
-// Create JSON response (Lambda format)
 export function createResponse(
   statusCode: number,
   data: Record<string, unknown>,
@@ -35,12 +31,10 @@ export function createResponse(
   };
 }
 
-// Authenticate request
 export function authenticate(
   headers: Record<string, string> | undefined,
   validApiKey: string | undefined
 ): AuthResult {
-  // Normalize headers to lowercase
   const normalizedHeaders: Record<string, string> = Object.fromEntries(
     Object.entries(headers || {}).map(([k, v]) => [k.toLowerCase(), v])
   );
@@ -68,7 +62,6 @@ export function authenticate(
   return { valid: true };
 }
 
-// Parse request body
 export function parseRequestBody(
   body: string | undefined,
   isBase64Encoded = false
@@ -92,7 +85,6 @@ export function parseRequestBody(
   }
 }
 
-// Setup page error collection
 export function setupPageErrorCollection(page: Page): ErrorCollection {
   const pageErrors: LogEntry[] = [];
   const consoleMessages: LogEntry[] = [];
@@ -121,7 +113,6 @@ export function setupPageErrorCollection(page: Page): ErrorCollection {
   return { pageErrors, consoleMessages };
 }
 
-// Core PDF generation handler
 export async function generatePdf(
   browser: Browser,
   requestData: RequestData,
@@ -130,7 +121,6 @@ export async function generatePdf(
 ): Promise<PdfResult> {
   const { url = "https://example.com", data = {}, options = {} } = requestData;
 
-  // Validate URL
   if (!isValidUrl(url)) {
     return createResponse(400, {
       message: "Invalid URL provided",
@@ -139,22 +129,18 @@ export async function generatePdf(
 
   const page = await browser.newPage();
 
-  // Setup error collection
   const { pageErrors, consoleMessages } = setupPageErrorCollection(page);
 
-  // Inject data into the page before it loads
   await page.evaluateOnNewDocument((injectedData: Record<string, unknown>) => {
-    // @ts-expect-error - window is available in browser context
-    window.__INJECTED_DATA__ = injectedData;
+    const w = globalThis as any;
+    w.__INJECTED_DATA__ = injectedData;
   }, data);
 
-  // Navigate to the URL
   const response = await page.goto(url, {
     waitUntil: options.waitUntil || "networkidle0",
     timeout: options.timeout || 30000,
   });
 
-  // Check if navigation was successful
   if (!response || !response.ok()) {
     return createResponse(502, {
       message: "Failed to load the page",
@@ -164,12 +150,10 @@ export async function generatePdf(
     });
   }
 
-  // Wait for any additional time if specified
   if (options.waitTime) {
     await new Promise((r) => setTimeout(r, options.waitTime));
   }
 
-  // Return errors if any occurred during page load
   if (pageErrors.length > 0 && options.failOnErrors) {
     return createResponse(422, {
       message: "Page loaded with errors",
@@ -178,7 +162,6 @@ export async function generatePdf(
     });
   }
 
-  // Generate PDF
   const pdfBuffer = await page.pdf({
     format: options.pdfFormat || "A4",
     printBackground: options.printBackground !== false,
@@ -186,7 +169,6 @@ export async function generatePdf(
     landscape: options.landscape || false,
   });
 
-  // Upload to S3
   const bucketName = process.env.PDF_BUCKET || "pdf-storage-1";
   const objectKey = `pdfs/page-${Date.now()}.pdf`;
 
@@ -208,6 +190,6 @@ export async function generatePdf(
       pageErrors: pageErrors.length > 0 ? pageErrors : undefined,
       consoleMessages: options.includeConsoleLogs ? consoleMessages : undefined,
     }),
-    pdfBuffer: Buffer.from(pdfBuffer), // Also return buffer for dev server
+    pdfBuffer: Buffer.from(pdfBuffer),
   };
 }

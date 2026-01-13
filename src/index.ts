@@ -12,16 +12,13 @@ import type { LambdaEvent, LambdaResponse } from "./types.js";
 const s3 = new S3Client({ region: process.env.AWS_REGION || "ap-south-1" });
 
 export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
-  // Support both API Gateway and Lambda Function URL formats
   const httpMethod = event.httpMethod || event.requestContext?.http?.method;
 
-  // API Key authentication
   const authResult = authenticate(event.headers, process.env.API_KEY);
   if (!authResult.valid) {
     return authResult.response!;
   }
 
-  // Only allow POST method
   if (httpMethod !== "POST") {
     return createResponse(
       405,
@@ -33,13 +30,11 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
   let browser = null;
 
   try {
-    // Parse request body
     const parseResult = parseRequestBody(event.body, event.isBase64Encoded);
     if (!parseResult.success) {
       return parseResult.response!;
     }
 
-    // Launch browser
     browser = await puppeteer.launch({
       args: chromium.args,
       executablePath: await chromium.executablePath(),
@@ -47,7 +42,6 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
       defaultViewport: { width: 1920, height: 1080 },
     });
 
-    // Generate PDF using shared logic
     const result = await generatePdf(
       browser,
       parseResult.data!,
@@ -55,7 +49,6 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
       PutObjectCommand
     );
 
-    // Return response (without pdfBuffer)
     const { pdfBuffer: _, ...response } = result;
     return response;
   } catch (error) {
