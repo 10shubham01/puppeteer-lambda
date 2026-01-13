@@ -8,6 +8,35 @@ export const handler = async (event) => {
   // Support both API Gateway and Lambda Function URL formats
   const httpMethod = event.httpMethod || event.requestContext?.http?.method;
   
+  // Get headers (normalize to lowercase)
+  const headers = Object.fromEntries(
+    Object.entries(event.headers || {}).map(([k, v]) => [k.toLowerCase(), v])
+  );
+  
+  // API Key authentication
+  const apiKey = headers["x-api-key"];
+  const validApiKey = process.env.API_KEY;
+  
+  if (!validApiKey) {
+    return {
+      statusCode: 500,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: "Server configuration error: API_KEY not set",
+      }),
+    };
+  }
+  
+  if (!apiKey || apiKey !== validApiKey) {
+    return {
+      statusCode: 401,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: "Unauthorized. Valid API key required.",
+      }),
+    };
+  }
+  
   // Only allow POST method
   if (httpMethod !== "POST") {
     return {
