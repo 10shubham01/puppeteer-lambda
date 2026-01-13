@@ -10,12 +10,17 @@
   "main": "index.js",
   "scripts": {
     "test": "node index.js",
-    "deploy": "zip -r lambda-function.zip index.js package.json node_modules && aws s3 cp lambda-function.zip s3://pdf-storage-1/new/"
+    "dev": "SKIP_S3=true API_KEY=dev-api-key node dev-server.js",
+    "dev:s3": "API_KEY=dev-api-key node dev-server.js",
+    "deploy": "zip -r lambda-function.zip index.js core.js package.json node_modules -x 'dev-server.js' && aws s3 cp lambda-function.zip s3://pdf-storage-1/new/"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.967.0",
     "@sparticuz/chromium": "^143.0.4",
     "@sparticuz/chromium-min": "110.0.1",
     "puppeteer-core": "^19.11.1"
+  },
+  "devDependencies": {
+    "puppeteer": "^24.35.0"
   }
 }

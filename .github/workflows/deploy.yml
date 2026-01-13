@@ -37,7 +37,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Create deployment package
-        run: zip -r lambda-function.zip index.js package.json node_modules
+        run: zip -r lambda-function.zip index.js core.js package.json node_modules
 
       - name: Upload to S3
         run: aws s3 cp lambda-function.zip s3://${{ env.S3_BUCKET }}/${{ env.S3_KEY }}
