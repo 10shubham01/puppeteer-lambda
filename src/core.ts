@@ -1,9 +1,21 @@
 // Core PDF generation logic shared between Lambda and dev server
 
+import type { Browser, Page, ConsoleMessage } from "puppeteer-core";
+import type { S3Client as S3ClientType } from "@aws-sdk/client-s3";
+import type {
+  LambdaResponse,
+  AuthResult,
+  ParseResult,
+  RequestData,
+  PdfResult,
+  LogEntry,
+  ErrorCollection,
+} from "./types.js";
+
 // Helper function to validate URLs
-export function isValidUrl(string) {
+export function isValidUrl(urlString: string): boolean {
   try {
-    const url = new URL(string);
+    const url = new URL(urlString);
     return url.protocol === "http:" || url.protocol === "https:";
   } catch {
     return false;
@@ -11,7 +23,11 @@ export function isValidUrl(string) {
 }
 
 // Create JSON response (Lambda format)
-export function createResponse(statusCode, data, extraHeaders = {}) {
+export function createResponse(
+  statusCode: number,
+  data: Record<string, unknown>,
+  extraHeaders: Record<string, string> = {}
+): LambdaResponse {
   return {
     statusCode,
     headers: { "Content-Type": "application/json", ...extraHeaders },
@@ -20,9 +36,12 @@ export function createResponse(statusCode, data, extraHeaders = {}) {
 }
 
 // Authenticate request
-export function authenticate(headers, validApiKey) {
+export function authenticate(
+  headers: Record<string, string> | undefined,
+  validApiKey: string | undefined
+): AuthResult {
   // Normalize headers to lowercase
-  const normalizedHeaders = Object.fromEntries(
+  const normalizedHeaders: Record<string, string> = Object.fromEntries(
     Object.entries(headers || {}).map(([k, v]) => [k.toLowerCase(), v])
   );
 
@@ -50,32 +69,36 @@ export function authenticate(headers, validApiKey) {
 }
 
 // Parse request body
-export function parseRequestBody(body, isBase64Encoded = false) {
+export function parseRequestBody(
+  body: string | undefined,
+  isBase64Encoded = false
+): ParseResult {
   if (!body) return { success: true, data: {} };
 
   try {
     const decoded = isBase64Encoded
       ? Buffer.from(body, "base64").toString("utf-8")
       : body;
-    return { success: true, data: JSON.parse(decoded) };
+    return { success: true, data: JSON.parse(decoded) as RequestData };
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     return {
       success: false,
       response: createResponse(400, {
         message: "Invalid JSON in request body",
-        error: error.message,
+        error: errorMessage,
       }),
     };
   }
 }
 
 // Setup page error collection
-export function setupPageErrorCollection(page) {
-  const pageErrors = [];
-  const consoleMessages = [];
+export function setupPageErrorCollection(page: Page): ErrorCollection {
+  const pageErrors: LogEntry[] = [];
+  const consoleMessages: LogEntry[] = [];
 
-  page.on("console", (msg) => {
-    const logEntry = {
+  page.on("console", (msg: ConsoleMessage) => {
+    const logEntry: LogEntry = {
       type: msg.type(),
       text: msg.text(),
       location: msg.location(),
@@ -87,10 +110,11 @@ export function setupPageErrorCollection(page) {
   });
 
   page.on("pageerror", (error) => {
+    const err = error as Error;
     pageErrors.push({
       type: "pageerror",
-      text: error.message,
-      stack: error.stack,
+      text: err.message,
+      stack: err.stack,
     });
   });
 
@@ -98,7 +122,12 @@ export function setupPageErrorCollection(page) {
 }
 
 // Core PDF generation handler
-export async function generatePdf(browser, requestData, s3Client, PutObjectCommand) {
+export async function generatePdf(
+  browser: Browser,
+  requestData: RequestData,
+  s3Client: S3ClientType,
+  PutObjectCommand: typeof import("@aws-sdk/client-s3").PutObjectCommand
+): Promise<PdfResult> {
   const { url = "https://example.com", data = {}, options = {} } = requestData;
 
   // Validate URL
@@ -114,7 +143,8 @@ export async function generatePdf(browser, requestData, s3Client, PutObjectComma
   const { pageErrors, consoleMessages } = setupPageErrorCollection(page);
 
   // Inject data into the page before it loads
-  await page.evaluateOnNewDocument((injectedData) => {
+  await page.evaluateOnNewDocument((injectedData: Record<string, unknown>) => {
+    // @ts-expect-error - window is available in browser context
     window.__INJECTED_DATA__ = injectedData;
   }, data);
 
@@ -178,6 +208,6 @@ export async function generatePdf(browser, requestData, s3Client, PutObjectComma
       pageErrors: pageErrors.length > 0 ? pageErrors : undefined,
       consoleMessages: options.includeConsoleLogs ? consoleMessages : undefined,
     }),
-    pdfBuffer, // Also return buffer for dev server
+    pdfBuffer: Buffer.from(pdfBuffer), // Also return buffer for dev server
   };
 }

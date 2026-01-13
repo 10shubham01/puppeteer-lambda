@@ -29,15 +29,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build TypeScript
+        run: npm run build
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ap-south-1
 
       - name: Create deployment package
-        run: zip -r lambda-function.zip index.js core.js package.json node_modules
+        run: |
+          cd dist && zip -r ../lambda-function.zip index.js core.js types.js && cd ..
+          zip -ur lambda-function.zip node_modules -x 'node_modules/puppeteer/*' 'node_modules/.cache/*' 'node_modules/@types/*' 'node_modules/typescript/*'
 
       - name: Upload to S3
         run: aws s3 cp lambda-function.zip s3://${{ env.S3_BUCKET }}/${{ env.S3_KEY }}
