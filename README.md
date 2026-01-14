@@ -59,8 +59,9 @@ Custom data to inject into the page. Accessible in the browser via `window.__INJ
 | `waitUntil` | string | `networkidle0` | When to consider navigation complete. Options: `load`, `domcontentloaded`, `networkidle0`, `networkidle2` |
 | `timeout` | number | `30000` | Navigation timeout in milliseconds |
 | `waitTime` | number | - | Additional wait time after page load (ms) |
-| `failOnErrors` | boolean | `false` | Fail if page has JavaScript errors |
+| `failOnErrors` | boolean | `false` | Fail if page has JavaScript console errors |
 | `includeConsoleLogs` | boolean | `false` | Include browser console logs in response |
+| `bypassStatusCode` | number[] | `[]` | Array of HTTP status codes to ignore for page assets only (e.g., `[403, 404, 500]`). Does NOT apply to main page URL errors |
 | `pdfFormat` | string | `A4` | Page format. Options: `A4`, `Letter`, `Legal`, `Tabloid`, `A3`, `A5` |
 | `printBackground` | boolean | `true` | Print background graphics |
 | `landscape` | boolean | `false` | Use landscape orientation |
@@ -86,6 +87,7 @@ Custom data to inject into the page. Accessible in the browser via `window.__INJ
 
 ```json
 {
+  "success": true,
   "message": "PDF generated successfully",
   "requestId": "req-1705234567890-abc1234",
   "bucket": "pdf-storage-1",
@@ -131,13 +133,32 @@ Only POST requests are accepted.
 ```
 
 #### 502 Bad Gateway
-Failed to load the target page.
+Main page URL returned 4xx/5xx status. This error CANNOT be bypassed.
 
 ```json
 {
+  "success": false,
   "message": "Failed to load the page",
-  "status": 404,
-  "statusText": "Not Found"
+  "status": 403,
+  "statusText": "Forbidden"
+}
+```
+
+#### 422 Unprocessable Entity
+Page assets (images, scripts, etc.) failed to load with HTTP errors. Use `bypassStatusCode` to ignore specific codes.
+
+```json
+{
+  "success": false,
+  "message": "Page assets failed to load",
+  "failedAssets": [
+    {
+      "type": "httpError",
+      "text": "HTTP 403: Forbidden",
+      "status": 403,
+      "location": { "url": "https://example.com/image.png" }
+    }
+  ]
 }
 ```
 

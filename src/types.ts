@@ -4,6 +4,7 @@ export interface PdfOptions {
   waitTime?: number;
   failOnErrors?: boolean;
   includeConsoleLogs?: boolean;
+  bypassStatusCode?: number[];
   pdfFormat?: "A4" | "Letter" | "Legal" | "Tabloid" | "A3" | "A5";
   printBackground?: boolean;
   margin?: {
@@ -37,6 +38,7 @@ export interface RequestData {
 export interface LogEntry {
   type: string;
   text: string;
+  status?: number;
   location?: {
     url?: string;
     lineNumber?: number;

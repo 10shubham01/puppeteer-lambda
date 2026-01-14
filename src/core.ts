@@ -113,6 +113,27 @@ export function setupPageErrorCollection(page: Page): ErrorCollection {
     });
   });
 
+  page.on("requestfailed", (request) => {
+    const failure = request.failure();
+    pageErrors.push({
+      type: "requestfailed",
+      text: failure?.errorText || "Request failed",
+      location: { url: request.url() },
+    });
+  });
+
+  page.on("response", (response) => {
+    const status = response.status();
+    if (status >= 400) {
+      pageErrors.push({
+        type: "httpError",
+        text: `HTTP ${status}: ${response.statusText()}`,
+        status,
+        location: { url: response.url() },
+      });
+    }
+  });
+
   return { pageErrors, consoleMessages };
 }
 
@@ -213,10 +234,14 @@ export async function generatePdf(
     timeout: pdfOptions.timeout || 30000,
   });
 
+  const statusCode = response?.status() || 0;
+
+  // Main page URL errors CANNOT be bypassed - always fail
   if (!response || !response.ok()) {
     return createResponse(502, {
+      success: false,
       message: "Failed to load the page",
-      status: response?.status(),
+      status: statusCode,
       statusText: response?.statusText(),
       pageErrors,
     });
@@ -226,8 +251,24 @@ export async function generatePdf(
     await new Promise((r) => setTimeout(r, pdfOptions.waitTime));
   }
 
+  // Check for HTTP errors in page assets (403, 404, 500, etc.)
+  // These CAN be bypassed using bypassStatusCode
+  const httpErrors = pageErrors.filter((e) => e.type === "httpError" && e.status);
+  const unbypassedHttpErrors = httpErrors.filter((e) => !pdfOptions.bypassStatusCode?.includes(e.status!));
+  
+  if (unbypassedHttpErrors.length > 0) {
+    return createResponse(422, {
+      success: false,
+      message: "Page assets failed to load",
+      failedAssets: unbypassedHttpErrors,
+      pageErrors,
+    });
+  }
+
+  // Check for JS/console errors - can be bypassed with failOnErrors: false (default)
   if (pageErrors.length > 0 && pdfOptions.failOnErrors) {
     return createResponse(422, {
+      success: false,
       message: "Page loaded with errors",
       pageErrors,
       consoleMessages,
@@ -304,6 +345,7 @@ export async function generatePdf(
 
   return {
     ...createResponse(200, {
+      success: true,
       message: "PDF generated successfully",
       requestId,
       bucket: bucketName,
