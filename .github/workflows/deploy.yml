@@ -66,4 +66,4 @@ jobs:
             --function-name ${{ 'puppeteer-new' }} \
             --query 'FunctionUrl' \
             --output text 2>/dev/null || echo "No Function URL configured")
-          echo "🚀 Lambda Function URL: $FUNCTION_URL"
+          echo "Lambda Function URL: $FUNCTION_URL"
