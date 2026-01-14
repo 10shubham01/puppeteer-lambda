@@ -52,13 +52,15 @@ export interface LambdaResponse {
 }
 
 export interface CostMetrics {
+  region: string;
   durationMs: number;
   durationSeconds: number;
   memorySizeMB: number;
-  estimatedGBSeconds: number;
+  diskSizeMB: number;
   estimatedCostUSD: number;
   breakdown: {
     computeCost: number;
+    storageCost: number;
     requestCost: number;
     s3PutCost: number;
     totalCost: number;
@@ -68,7 +70,7 @@ export interface CostMetrics {
 export interface ProgressData {
   requestId: string;
   timestamp: string;
-  request: RequestData;
+  request: Omit<RequestData, "security">;
   response: {
     status: string;
     bucket?: string;
@@ -77,7 +79,14 @@ export interface ProgressData {
     hasErrors: boolean;
     errorCount: number;
   };
-  metrics: CostMetrics;
+  security: {
+    requested: boolean;
+    applied: boolean;
+  };
+  metrics: {
+    durationMs: number;
+    totalCostUSD: number;
+  };
 }
 
 export interface PdfResult extends LambdaResponse {

@@ -1,6 +1,5 @@
 import type { Browser, Page, ConsoleMessage } from "puppeteer-core";
 import type { S3Client as S3ClientType } from "@aws-sdk/client-s3";
-import { PDFDocument } from "pdf-lib";
 import type {
   LambdaResponse,
   AuthResult,
@@ -116,56 +115,51 @@ export function setupPageErrorCollection(page: Page): ErrorCollection {
   return { pageErrors, consoleMessages };
 }
 
-export function calculateCost(durationMs: number, memorySizeMB = 1024): CostMetrics {
+const LAMBDA_PRICING: Record<string, { duration: number; storage: number; requests: number }> = {
+  "ap-south-1": { duration: 0.0000133334, storage: 0.0000000309, requests: 0.0000002 },
+};
+
+const MIN_EPHEMERAL_STORAGE_MB = 512;
+const S3_PUT_COST = 0.000005;
+
+export function calculateCost(
+  durationMs: number,
+  memorySizeMB = 1024,
+  diskSizeMB = 512,
+  region = "ap-south-1"
+): CostMetrics {
+  const pricing = LAMBDA_PRICING[region] || LAMBDA_PRICING["ap-south-1"];
   const durationSeconds = durationMs / 1000;
-  const gbSeconds = (memorySizeMB / 1024) * durationSeconds;
-  const computeCostPerGBSecond = 0.0000166667;
-  const requestCost = 0.0000002;
-  const s3PutCost = 0.000005;
-  const computeCost = gbSeconds * computeCostPerGBSecond;
-  const totalCost = computeCost + requestCost + s3PutCost;
+  const computeCost = pricing.duration * ((memorySizeMB * durationMs) / 1000 / 1024);
+  const chargedDiskSize = Math.max(0, diskSizeMB - MIN_EPHEMERAL_STORAGE_MB);
+  const storageCost = chargedDiskSize * pricing.storage * (durationMs / 1000 / 1024);
+  const requestCost = pricing.requests;
+  const totalLambdaCost = computeCost + storageCost + requestCost;
+  const totalCost = totalLambdaCost + S3_PUT_COST;
 
   return {
+    region,
     durationMs,
     durationSeconds: Math.round(durationSeconds * 1000) / 1000,
     memorySizeMB,
-    estimatedGBSeconds: Math.round(gbSeconds * 1000000) / 1000000,
-    estimatedCostUSD: Math.round(totalCost * 10000000) / 10000000,
+    diskSizeMB,
+    estimatedCostUSD: Number(totalCost.toFixed(7)),
     breakdown: {
-      computeCost: Math.round(computeCost * 10000000) / 10000000,
-      requestCost,
-      s3PutCost,
-      totalCost: Math.round(totalCost * 10000000) / 10000000,
+      computeCost: Number(computeCost.toFixed(7)),
+      storageCost: Number(storageCost.toFixed(7)),
+      requestCost: Number(requestCost.toFixed(7)),
+      s3PutCost: S3_PUT_COST,
+      totalCost: Number(totalCost.toFixed(7)),
     },
   };
 }
 
 export async function protectPdf(
   pdfBuffer: Uint8Array,
-  userPassword?: string,
-  ownerPassword?: string
-): Promise<Uint8Array> {
-  if (!userPassword && !ownerPassword) {
-    return pdfBuffer;
-  }
-
-  const pdfDoc = await PDFDocument.load(pdfBuffer);
-
-  if (userPassword || ownerPassword) {
-    const encrypt = (pdfDoc as any).encrypt;
-    if (typeof encrypt === "function") {
-      encrypt.call(pdfDoc, {
-        userPassword,
-        ownerPassword: ownerPassword || userPassword,
-      });
-    } else {
-      return pdfBuffer;
-    }
-  }
-
-  const protectedPdf = await pdfDoc.save();
-
-  return protectedPdf;
+  _userPassword?: string,
+  _ownerPassword?: string
+): Promise<{ buffer: Uint8Array; protected: boolean }> {
+  return { buffer: pdfBuffer, protected: false };
 }
 
 export async function generatePdf(
@@ -226,8 +220,11 @@ export async function generatePdf(
     landscape: options.landscape || false,
   });
 
+  let isPasswordProtected = false;
   if (security.password || security.ownerPassword) {
-    pdfBuffer = await protectPdf(pdfBuffer, security.password, security.ownerPassword);
+    const result = await protectPdf(pdfBuffer, security.password, security.ownerPassword);
+    pdfBuffer = result.buffer;
+    isPasswordProtected = result.protected;
   }
 
   const bucketName = s3.bucket || process.env.PDF_BUCKET || "pdf-storage-1";
@@ -248,12 +245,13 @@ export async function generatePdf(
 
   const durationMs = Date.now() - startTime;
   const memorySizeMB = parseInt(process.env.AWS_LAMBDA_FUNCTION_MEMORY_SIZE || "1024", 10);
-  const metrics = calculateCost(durationMs, memorySizeMB);
+  const region = process.env.AWS_REGION || "ap-south-1";
+  const metrics = calculateCost(durationMs, memorySizeMB, 512, region);
 
   const progressData: ProgressData = {
     requestId,
     timestamp: new Date().toISOString(),
-    request: { url, data, options, s3, security: { password: security.password ? "***" : undefined } },
+    request: { url, data, options, s3 },
     response: {
       status: "success",
       bucket: bucketName,
@@ -262,7 +260,14 @@ export async function generatePdf(
       hasErrors: pageErrors.length > 0,
       errorCount: pageErrors.length,
     },
-    metrics,
+    security: {
+      requested: !!(security.password || security.ownerPassword),
+      applied: isPasswordProtected,
+    },
+    metrics: {
+      durationMs: metrics.durationMs,
+      totalCostUSD: metrics.breakdown.totalCost,
+    },
   };
 
   if (!skipS3) {
@@ -284,12 +289,16 @@ export async function generatePdf(
       bucket: bucketName,
       key: objectKey,
       s3Url: skipS3 ? undefined : `https://${bucketName}.s3.amazonaws.com/${objectKey}`,
-      isPasswordProtected: !!(security.password || security.ownerPassword),
+      security: {
+        requested: !!(security.password || security.ownerPassword),
+        applied: isPasswordProtected,
+        note: !isPasswordProtected && (security.password || security.ownerPassword)
+          ? "Password protection not supported (pdf-lib limitation)"
+          : undefined,
+      },
       metrics: {
         durationMs: metrics.durationMs,
-        durationSeconds: metrics.durationSeconds,
-        estimatedCostUSD: metrics.estimatedCostUSD,
-        breakdown: metrics.breakdown,
+        totalCostUSD: metrics.breakdown.totalCost,
       },
       pageErrors: pageErrors.length > 0 ? pageErrors : undefined,
       consoleMessages: options.includeConsoleLogs ? consoleMessages : undefined,
