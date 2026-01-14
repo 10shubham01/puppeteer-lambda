@@ -1,6 +1,6 @@
 import type { Browser, Page, ConsoleMessage } from "puppeteer-core";
 import type { S3Client as S3ClientType } from "@aws-sdk/client-s3";
-import { PDFDocument } from "pdf-lib";
+import { encryptPDF } from "@pdfsmaller/pdf-encrypt-lite";
 import type {
   LambdaResponse,
   AuthResult,
@@ -159,28 +159,21 @@ export async function protectPdf(
   pdfBuffer: Uint8Array,
   userPassword?: string,
   ownerPassword?: string
-): Promise<{ buffer: Uint8Array; protected: boolean }> {
+): Promise<{ buffer: Uint8Array; protected: boolean; error?: string }> {
   if (!userPassword && !ownerPassword) {
     return { buffer: pdfBuffer, protected: false };
   }
 
   try {
-    const pdfDoc = await PDFDocument.load(pdfBuffer);
-
-    (pdfDoc as any).encrypt({
-      userPassword: userPassword || "",
-      ownerPassword: ownerPassword || userPassword || "",
-      permissions: {
-        printing: "highResolution",
-        modifying: false,
-        copying: false,
-      },
-    });
-
-    const encryptedPdf = await pdfDoc.save();
+    const encryptedPdf = await encryptPDF(
+      pdfBuffer,
+      userPassword || "",
+      ownerPassword || userPassword || ""
+    );
     return { buffer: encryptedPdf, protected: true };
-  } catch {
-    return { buffer: pdfBuffer, protected: false };
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : "Unknown error";
+    return { buffer: pdfBuffer, protected: false, error: errorMsg };
   }
 }
 
@@ -314,9 +307,6 @@ export async function generatePdf(
       security: {
         requested: !!(security.password || security.ownerPassword),
         applied: isPasswordProtected,
-        note: !isPasswordProtected && (security.password || security.ownerPassword)
-          ? "Password protection not supported (pdf-lib limitation)"
-          : undefined,
       },
       metrics: {
         durationMs: metrics.durationMs,

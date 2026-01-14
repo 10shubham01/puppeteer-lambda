@@ -110,9 +110,7 @@ async function handleRequest(
       return;
     }
 
-    console.log(
-      `🚀 Generating PDF for: ${parseResult.data?.url || "https://example.com"}`
-    );
+    console.log(`Generating PDF for: ${parseResult.data?.url || "https://example.com"}`);
 
     browser = await puppeteer.launch({
       headless: true,
@@ -126,14 +124,14 @@ async function handleRequest(
       PutObjectCommand
     );
 
-    console.log(`📄 PDF generated successfully`);
+    console.log("PDF generated successfully");
 
     sendResponse(res, result, result.pdfBuffer || null);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     const errorStack = error instanceof Error ? error.stack : undefined;
 
-    console.error(`❌ Error: ${errorMessage}`);
+    console.error(`Error: ${errorMessage}`);
     sendResponse(
       res,
       createResponse(500, {
@@ -145,7 +143,7 @@ async function handleRequest(
   } finally {
     if (browser) {
       await browser.close();
-      console.log("🔒 Browser closed");
+      console.log("Browser closed");
     }
   }
 }
@@ -157,12 +155,12 @@ async function startServer(): Promise<void> {
   try {
     port = await findAvailablePort(requestedPort);
   } catch (error) {
-    console.error(`❌ ${error instanceof Error ? error.message : "Failed to find port"}`);
+    console.error(`${error instanceof Error ? error.message : "Failed to find port"}`);
     process.exit(1);
   }
 
   if (port !== requestedPort) {
-    console.log(`⚠️  Port ${requestedPort} is in use, using port ${port} instead`);
+    console.log(`Port ${requestedPort} is in use, using port ${port} instead`);
   }
 
   const server = http.createServer(handleRequest);
@@ -170,29 +168,27 @@ async function startServer(): Promise<void> {
   server.listen(port, () => {
     const skipS3 = process.env.SKIP_S3 === "true";
     console.log(`
-╔════════════════════════════════════════════════════════╗
-║         🚀 PDF Generator Dev Server                    ║
-╠════════════════════════════════════════════════════════╣
-║  URL:      http://localhost:${port}                       ${port >= 10000 ? "" : " "}║
-║  API Key:  ${API_KEY.substring(0, 10)}...                            ║
-║  Skip S3:  ${skipS3 ? "Yes (returns PDF directly)" : "No (uploads to S3)      "}       ║
-╚════════════════════════════════════════════════════════╝
+PDF Generator Dev Server
+========================
+URL:      http://localhost:${port}
+API Key:  ${API_KEY.substring(0, 10)}...
+Skip S3:  ${skipS3 ? "Yes (returns PDF directly)" : "No (uploads to S3)"}
 
 Sample request:
 curl -X POST http://localhost:${port} \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: ${API_KEY}" \\
-  -d '{"url": "https://example.com", "data": {"test": true}}'${skipS3 ? " \\\n  --output test.pdf" : ""}
+  -d '{"url": "https://example.com"}'${skipS3 ? " \\\n  --output test.pdf" : ""}
 `);
   });
 
   process.on("SIGINT", () => {
-    console.log("\n👋 Shutting down...");
+    console.log("\nShutting down...");
     server.close(() => process.exit(0));
   });
 
   process.on("SIGTERM", () => {
-    console.log("\n👋 Shutting down...");
+    console.log("\nShutting down...");
     server.close(() => process.exit(0));
   });
 }
