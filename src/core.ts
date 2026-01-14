@@ -1,5 +1,6 @@
 import type { Browser, Page, ConsoleMessage } from "puppeteer-core";
 import type { S3Client as S3ClientType } from "@aws-sdk/client-s3";
+import { PDFDocument } from "pdf-lib";
 import type {
   LambdaResponse,
   AuthResult,
@@ -156,10 +157,31 @@ export function calculateCost(
 
 export async function protectPdf(
   pdfBuffer: Uint8Array,
-  _userPassword?: string,
-  _ownerPassword?: string
+  userPassword?: string,
+  ownerPassword?: string
 ): Promise<{ buffer: Uint8Array; protected: boolean }> {
-  return { buffer: pdfBuffer, protected: false };
+  if (!userPassword && !ownerPassword) {
+    return { buffer: pdfBuffer, protected: false };
+  }
+
+  try {
+    const pdfDoc = await PDFDocument.load(pdfBuffer);
+
+    (pdfDoc as any).encrypt({
+      userPassword: userPassword || "",
+      ownerPassword: ownerPassword || userPassword || "",
+      permissions: {
+        printing: "highResolution",
+        modifying: false,
+        copying: false,
+      },
+    });
+
+    const encryptedPdf = await pdfDoc.save();
+    return { buffer: encryptedPdf, protected: true };
+  } catch {
+    return { buffer: pdfBuffer, protected: false };
+  }
 }
 
 export async function generatePdf(
