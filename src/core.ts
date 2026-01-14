@@ -69,7 +69,7 @@ export function parseRequestBody(
   body: string | undefined,
   isBase64Encoded = false
 ): ParseResult {
-  if (!body) return { success: true, data: {} };
+  if (!body) return { success: true };
 
   try {
     const decoded = isBase64Encoded
@@ -185,9 +185,15 @@ export async function generatePdf(
 ): Promise<PdfResult> {
   const startTime = Date.now();
   const requestId = `req-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-  const { url = "https://example.com", data = {}, options = {}, s3 = {}, security = {} } = requestData;
+  const { pageUrl, inputProps = {}, pdfOptions = {}, s3BucketConfig = {}, security = {} } = requestData;
 
-  if (!isValidUrl(url)) {
+  if (!pageUrl) {
+    return createResponse(400, {
+      message: "pageUrl is required",
+    });
+  }
+
+  if (!isValidUrl(pageUrl)) {
     return createResponse(400, {
       message: "Invalid URL provided",
     });
@@ -200,11 +206,11 @@ export async function generatePdf(
   await page.evaluateOnNewDocument((injectedData: Record<string, unknown>) => {
     const w = globalThis as any;
     w.__INJECTED_DATA__ = injectedData;
-  }, data);
+  }, inputProps);
 
-  const response = await page.goto(url, {
-    waitUntil: options.waitUntil || "networkidle0",
-    timeout: options.timeout || 30000,
+  const response = await page.goto(pageUrl, {
+    waitUntil: pdfOptions.waitUntil || "networkidle0",
+    timeout: pdfOptions.timeout || 30000,
   });
 
   if (!response || !response.ok()) {
@@ -216,11 +222,11 @@ export async function generatePdf(
     });
   }
 
-  if (options.waitTime) {
-    await new Promise((r) => setTimeout(r, options.waitTime));
+  if (pdfOptions.waitTime) {
+    await new Promise((r) => setTimeout(r, pdfOptions.waitTime));
   }
 
-  if (pageErrors.length > 0 && options.failOnErrors) {
+  if (pageErrors.length > 0 && pdfOptions.failOnErrors) {
     return createResponse(422, {
       message: "Page loaded with errors",
       pageErrors,
@@ -229,10 +235,10 @@ export async function generatePdf(
   }
 
   let pdfBuffer = await page.pdf({
-    format: options.pdfFormat || "A4",
-    printBackground: options.printBackground !== false,
-    margin: options.margin || undefined,
-    landscape: options.landscape || false,
+    format: pdfOptions.pdfFormat || "A4",
+    printBackground: pdfOptions.printBackground !== false,
+    margin: pdfOptions.margin || undefined,
+    landscape: pdfOptions.landscape || false,
   });
 
   let isPasswordProtected = false;
@@ -242,9 +248,9 @@ export async function generatePdf(
     isPasswordProtected = result.protected;
   }
 
-  const bucketName = s3.bucket || process.env.PDF_BUCKET || "pdf-storage-1";
-  const fileName = s3.fileName || `page-${Date.now()}.pdf`;
-  const objectKey = s3.key ? `${s3.key}/${fileName}` : `pdfs/${fileName}`;
+  const bucketName = s3BucketConfig.bucket || process.env.PDF_BUCKET || "pdf-storage-1";
+  const fileName = s3BucketConfig.fileName || `page-${Date.now()}.pdf`;
+  const objectKey = s3BucketConfig.key ? `${s3BucketConfig.key}/${fileName}` : `pdfs/${fileName}`;
   const skipS3 = process.env.SKIP_S3 === "true";
 
   if (!skipS3) {
@@ -266,7 +272,7 @@ export async function generatePdf(
   const progressData: ProgressData = {
     requestId,
     timestamp: new Date().toISOString(),
-    request: { url, data, options, s3 },
+    request: { pageUrl, inputProps, pdfOptions, s3BucketConfig },
     response: {
       status: "success",
       bucket: bucketName,
@@ -286,7 +292,7 @@ export async function generatePdf(
   };
 
   if (!skipS3) {
-    const progressKey = s3.key ? `${s3.key}/progress.json` : "pdfs/progress.json";
+    const progressKey = s3BucketConfig.key ? `${s3BucketConfig.key}/progress.json` : "pdfs/progress.json";
     await s3Client.send(
       new PutObjectCommand({
         Bucket: bucketName,
@@ -313,7 +319,7 @@ export async function generatePdf(
         totalCostUSD: metrics.breakdown.totalCost,
       },
       pageErrors: pageErrors.length > 0 ? pageErrors : undefined,
-      consoleMessages: options.includeConsoleLogs ? consoleMessages : undefined,
+      consoleMessages: pdfOptions.includeConsoleLogs ? consoleMessages : undefined,
     }),
     pdfBuffer: Buffer.from(pdfBuffer),
   };

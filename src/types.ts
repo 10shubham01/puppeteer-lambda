@@ -27,10 +27,10 @@ export interface PdfSecurity {
 }
 
 export interface RequestData {
-  url?: string;
-  data?: Record<string, unknown>;
-  options?: PdfOptions;
-  s3?: S3Config;
+  pageUrl: string;
+  inputProps?: Record<string, unknown>;
+  pdfOptions?: PdfOptions;
+  s3BucketConfig?: S3Config;
   security?: PdfSecurity;
 }
 

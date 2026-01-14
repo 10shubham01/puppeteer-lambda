@@ -110,7 +110,7 @@ async function handleRequest(
       return;
     }
 
-    console.log(`Generating PDF for: ${parseResult.data?.url || "https://example.com"}`);
+    console.log(`Generating PDF for: ${parseResult.data?.pageUrl}`);
 
     browser = await puppeteer.launch({
       headless: true,
@@ -178,7 +178,7 @@ Sample request:
 curl -X POST http://localhost:${port} \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: ${API_KEY}" \\
-  -d '{"url": "https://example.com"}'${skipS3 ? " \\\n  --output test.pdf" : ""}
+  -d '{"pageUrl": "https://example.com"}'${skipS3 ? " \\\n  --output test.pdf" : ""}
 `);
   });
 
