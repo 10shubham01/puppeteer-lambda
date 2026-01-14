@@ -282,8 +282,7 @@ export async function generatePdf(
       errorCount: pageErrors.length,
     },
     security: {
-      requested: !!(security.password || security.ownerPassword),
-      applied: isPasswordProtected,
+      password: isPasswordProtected ? security.password : undefined,
     },
     metrics: {
       durationMs: metrics.durationMs,
@@ -311,8 +310,7 @@ export async function generatePdf(
       key: objectKey,
       s3Url: skipS3 ? undefined : `https://${bucketName}.s3.amazonaws.com/${objectKey}`,
       security: {
-        requested: !!(security.password || security.ownerPassword),
-        applied: isPasswordProtected,
+        password: isPasswordProtected ? security.password : undefined,
       },
       metrics: {
         durationMs: metrics.durationMs,

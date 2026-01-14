@@ -92,8 +92,7 @@ Custom data to inject into the page. Accessible in the browser via `window.__INJ
   "key": "pdfs/page-1705234567890.pdf",
   "s3Url": "https://pdf-storage-1.s3.amazonaws.com/pdfs/page-1705234567890.pdf",
   "security": {
-    "requested": true,
-    "applied": true
+    "password": "secret123"
   },
   "metrics": {
     "durationMs": 3500,
@@ -291,8 +290,7 @@ Each successful request creates a `progress.json` file in the same S3 folder as 
     "errorCount": 0
   },
   "security": {
-    "requested": true,
-    "applied": true
+    "password": "secret123"
   },
   "metrics": {
     "durationMs": 3500,

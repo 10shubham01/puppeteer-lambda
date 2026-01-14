@@ -80,8 +80,7 @@ export interface ProgressData {
     errorCount: number;
   };
   security: {
-    requested: boolean;
-    applied: boolean;
+    password?: string;
   };
   metrics: {
     durationMs: number;
