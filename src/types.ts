@@ -15,10 +15,23 @@ export interface PdfOptions {
   landscape?: boolean;
 }
 
+export interface S3Config {
+  bucket?: string;
+  key?: string;
+  fileName?: string;
+}
+
+export interface PdfSecurity {
+  password?: string;
+  ownerPassword?: string;
+}
+
 export interface RequestData {
   url?: string;
   data?: Record<string, unknown>;
   options?: PdfOptions;
+  s3?: S3Config;
+  security?: PdfSecurity;
 }
 
 export interface LogEntry {
@@ -36,6 +49,35 @@ export interface LambdaResponse {
   statusCode: number;
   headers: Record<string, string>;
   body: string;
+}
+
+export interface CostMetrics {
+  durationMs: number;
+  durationSeconds: number;
+  memorySizeMB: number;
+  estimatedGBSeconds: number;
+  estimatedCostUSD: number;
+  breakdown: {
+    computeCost: number;
+    requestCost: number;
+    s3PutCost: number;
+    totalCost: number;
+  };
+}
+
+export interface ProgressData {
+  requestId: string;
+  timestamp: string;
+  request: RequestData;
+  response: {
+    status: string;
+    bucket?: string;
+    key?: string;
+    s3Url?: string;
+    hasErrors: boolean;
+    errorCount: number;
+  };
+  metrics: CostMetrics;
 }
 
 export interface PdfResult extends LambdaResponse {
